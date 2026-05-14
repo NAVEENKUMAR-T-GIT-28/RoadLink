@@ -123,10 +123,10 @@ A standard React 18 SPA. State is held in a Zustand store. A single `useWS` hook
 ┌──────────────────────────────────────────────────────────────┐
 │  OBU LAYER (one thread per vehicle)                          │
 │                                                              │
-│  OBUNode-A   OBUNode-B   OBUNode-C  ...  OBUNode-N          │
+│  OBUNode-A   OBUNode-B   OBUNode-C  ...  OBUNode-N           │
 │  car         truck       bike             any type           │
 │  PathProfile PathProfile PathProfile      PathProfile        │
-│  BSM encode  BSM encode  BSM encode       BSM encode        │
+│  BSM encode  BSM encode  BSM encode       BSM encode         │
 │      │           │           │                │              │
 │      └───────────┴───────────┴────────────────┘              │
 │                         UDP :5005                            │
@@ -135,7 +135,7 @@ A standard React 18 SPA. State is held in a Zustand store. A single `useWS` hook
 ┌──────────────────────────────▼───────────────────────────────┐
 │  GATEWAY LAYER (single asyncio process)                      │
 │                                                              │
-│  UDP socket rx ──► BSM decode ──► VehicleRegistry           │
+│  UDP socket rx ──► BSM decode ──► VehicleRegistry            │
 │                                        │                     │
 │                              compute_all_pairs()             │
 │                              alert matrix (N×N pairs)        │

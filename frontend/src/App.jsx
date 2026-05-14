@@ -33,7 +33,7 @@ export default function App() {
       <header className="app-header">
         <div className="header-brand">
           <h1>ROADLINK</h1>
-          <span className="version-badge">V2</span>
+          <span className="version-badge">V1</span>
         </div>
 
         <div className="header-status">
