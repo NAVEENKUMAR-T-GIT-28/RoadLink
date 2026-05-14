@@ -11,6 +11,15 @@ import {
 } from 'recharts';
 import useVehicleStore from '../store/vehicleStore';
 
+function DriveKey({ k, pressed, label }) {
+  return (
+    <div className={`drive-key ${pressed ? 'pressed' : ''}`}>
+      <span className="key-label">{k}</span>
+      <span className="key-action">{label}</span>
+    </div>
+  );
+}
+
 export default function DetailPanel() {
   const vehicles        = useVehicleStore((s) => s.vehicles);
   const collisionMatrix = useVehicleStore((s) => s.collisionMatrix);
@@ -18,6 +27,9 @@ export default function DetailPanel() {
   const ttcHistory      = useVehicleStore((s) => s.ttcHistory);
   const alertLog        = useVehicleStore((s) => s.alertLog);
   const deleteVehicle   = useVehicleStore((s) => s.deleteVehicle);
+  const driveMode       = useVehicleStore((s) => s.driveMode);
+  const setDriveMode    = useVehicleStore((s) => s.setDriveMode);
+  const driveKeys       = useVehicleStore((s) => s.driveKeys);
 
   const vehicle = selectedId ? vehicles[selectedId] : null;
 
@@ -108,14 +120,24 @@ export default function DetailPanel() {
             <span className="vehicle-type-badge">{vehicle.type}</span>
           </div>
         </div>
-        <button
-          className="delete-btn"
-          onClick={handleDelete}
-          title="Delete vehicle"
-          id="delete-vehicle-btn"
-        >
-          🗑 Delete
-        </button>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button
+            className={`drive-toggle-btn ${driveMode ? 'active' : ''}`}
+            onClick={() => setDriveMode(!driveMode)}
+            title={driveMode ? 'Switch to Auto mode' : 'Switch to Drive mode (WASD)'}
+            id="drive-mode-btn"
+          >
+            {driveMode ? '🕹 DRIVE' : '🤖 AUTO'}
+          </button>
+          <button
+            className="delete-btn"
+            onClick={handleDelete}
+            title="Delete vehicle"
+            id="delete-vehicle-btn"
+          >
+            🗑 Delete
+          </button>
+        </div>
       </div>
 
       {/* ── Telemetry ───────────────────────────────────────────────────── */}
@@ -150,6 +172,21 @@ export default function DetailPanel() {
           </div>
         </div>
       </div>
+
+      {/* ── Drive HUD ─────────────────────────────────────────────────── */}
+      {driveMode && (
+        <div className="drive-hud">
+          <div className="drive-hud-title">🕹 Drive Controls</div>
+          <div className="drive-key-grid">
+            <span />
+            <DriveKey k="W" pressed={driveKeys.w} label="Accel" />
+            <span />
+            <DriveKey k="A" pressed={driveKeys.a} label="Left" />
+            <DriveKey k="S" pressed={driveKeys.s} label="Brake" />
+            <DriveKey k="D" pressed={driveKeys.d} label="Right" />
+          </div>
+        </div>
+      )}
 
       {/* ── Nearby Vehicles ─────────────────────────────────────────────── */}
       <div className="detail-section">

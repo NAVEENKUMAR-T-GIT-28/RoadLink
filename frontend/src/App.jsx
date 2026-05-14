@@ -4,6 +4,7 @@
 
 import React from 'react';
 import useWS from './hooks/useWS';
+import useKeyboard from './hooks/useKeyboard';
 import useVehicleStore from './store/vehicleStore';
 import AlertBar from './components/AlertBar';
 import VehicleList from './components/VehicleList';
@@ -13,6 +14,8 @@ import DetailPanel from './components/DetailPanel';
 export default function App() {
   // Establish WebSocket connection
   useWS();
+  // Capture WASD keys for drive mode
+  useKeyboard();
 
   const connected    = useVehicleStore((s) => s.connected);
   const vehicles     = useVehicleStore((s) => s.vehicles);

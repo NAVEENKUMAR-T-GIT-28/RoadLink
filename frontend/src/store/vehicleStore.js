@@ -30,11 +30,25 @@ const useVehicleStore = create((set, get) => ({
   ttcHistory:      [],       // [{t, pairKey, ttc}, ...]
   trails:          {},       // {vehicleId: [{lat, lon}, ...]}
 
+  // Drive mode state
+  driveMode:  false,       // is the selected vehicle in drive mode?
+  driveKeys:  { w: false, a: false, s: false, d: false },
+  _wsSend:    null,
+
   // ── Actions ────────────────────────────────────────────────────────────
 
   setConnected: (val) => set({ connected: val }),
 
-  selectVehicle: (id) => set({ selectedId: id }),
+  selectVehicle: (id) => {
+    const { driveMode, selectedId, _wsSend } = get();
+    // Release previous vehicle from drive mode
+    if (driveMode && selectedId && selectedId !== id && _wsSend) {
+      _wsSend({ type: "drive_input", id: selectedId, mode: "auto",
+                keys: { w: false, a: false, s: false, d: false } });
+    }
+    set({ selectedId: id, driveMode: false,
+          driveKeys: { w: false, a: false, s: false, d: false } });
+  },
 
   /**
    * Process an incoming WebSocket frame from the gateway.
@@ -86,10 +100,12 @@ const useVehicleStore = create((set, get) => ({
     // Trim log
     if (alertLog.length > MAX_LOG) alertLog.length = MAX_LOG;
 
-    // If selected vehicle was removed, deselect
+    // If selected vehicle was removed, deselect and exit drive mode
     let selectedId = state.selectedId;
+    let driveMode  = state.driveMode;
     if (selectedId && !(selectedId in vehicles)) {
       selectedId = null;
+      driveMode  = false;
     }
 
     set({
@@ -100,6 +116,8 @@ const useVehicleStore = create((set, get) => ({
       ttcHistory:      trimmedHistory,
       alertLog,
       selectedId,
+      driveMode,
+      driveKeys: driveMode ? state.driveKeys : { w: false, a: false, s: false, d: false },
     });
   },
 
@@ -117,6 +135,12 @@ const useVehicleStore = create((set, get) => ({
   },
 
   deleteVehicle: async (id) => {
+    const { selectedId, driveMode, _wsSend } = get();
+    // If deleting the driven vehicle, release drive mode first
+    if (selectedId === id && driveMode && _wsSend) {
+      _wsSend({ type: "drive_input", id, mode: "auto",
+                keys: { w: false, a: false, s: false, d: false } });
+    }
     const resp = await fetch(`${REST_BASE}/api/vehicles/${id}`, {
       method: 'DELETE',
     });
@@ -124,10 +148,55 @@ const useVehicleStore = create((set, get) => ({
     if (!resp.ok) throw new Error(data.error || 'Delete failed');
     // Deselect if this was the selected vehicle
     if (get().selectedId === id) {
-      set({ selectedId: null });
+      set({ selectedId: null, driveMode: false,
+            driveKeys: { w: false, a: false, s: false, d: false } });
     }
     return data;
   },
+
+  // ── Drive mode actions ──────────────────────────────────────────────────
+
+  setDriveMode: (active) => {
+    const { selectedId, _wsSend } = get();
+    if (!selectedId) return;
+
+    set({ driveMode: active });
+
+    // Tell the backend immediately when toggling
+    if (_wsSend) {
+      _wsSend({
+        type: "drive_input",
+        id:   selectedId,
+        mode: active ? "drive" : "auto",
+        keys: { w: false, a: false, s: false, d: false },
+      });
+    }
+
+    // On leaving drive, release all keys
+    if (!active) {
+      set({ driveKeys: { w: false, a: false, s: false, d: false } });
+    }
+  },
+
+  setDriveKey: (key, pressed) => {
+    const { selectedId, driveMode, driveKeys, _wsSend } = get();
+    if (!selectedId || !driveMode) return;
+
+    const newKeys = { ...driveKeys, [key]: pressed };
+    set({ driveKeys: newKeys });
+
+    if (_wsSend) {
+      _wsSend({
+        type: "drive_input",
+        id:   selectedId,
+        mode: "drive",
+        keys: newKeys,
+      });
+    }
+  },
+
+  // Internal: set the WS send function (called from useWS)
+  _setWsSend: (fn) => set({ _wsSend: fn }),
 }));
 
 export { WS_URL, RECONNECT_MS };

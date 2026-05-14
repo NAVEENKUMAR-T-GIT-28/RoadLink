@@ -121,6 +121,22 @@ class VehicleRegistry:
             "status": "stopped",
         }
 
+    # ── Drive override ──────────────────────────────────────────────────
+
+    def set_drive_override(self, registry_id: str, mode: str, keys: dict) -> None:
+        """
+        Route a drive_input WebSocket message to the correct OBU node.
+
+        Args:
+            registry_id: The hex registry ID of the target vehicle.
+            mode: "auto" or "drive"
+            keys: {"w": bool, "a": bool, "s": bool, "d": bool}
+        """
+        with self._lock:
+            node = self._nodes.get(registry_id)
+        if node:
+            node.set_drive_override(mode, keys)
+
     # ── Query ────────────────────────────────────────────────────────────
 
     def get_all_states(self) -> Dict[str, Dict]:

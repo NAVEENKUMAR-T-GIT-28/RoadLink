@@ -11,6 +11,7 @@ One Python thread per vehicle. Started/stopped by the gateway.
 """
 
 import logging
+import math
 import os
 import random
 import socket
@@ -23,9 +24,91 @@ from typing import Optional
 # Resolve imports relative to the backend package
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from bsm_codec import encode, decode, FRAME_SIZE
-from obu.path_engine import PathEngine, PROFILES
+from obu.path_engine import PathEngine, PROFILES, BOUNDARY, METRES_PER_DEG_LAT, METRES_PER_DEG_LON
 
 logger = logging.getLogger("obu")
+
+
+# ── Drive Physics helper ─────────────────────────────────────────────────────
+
+class DrivePhysics:
+    """
+    Converts WASD key-press state into lat/lon/heading/speed updates.
+
+    W = accelerate forward
+    S = brake / reverse
+    A = turn left
+    D = turn right
+    """
+
+    ACCEL_RATE   = 4.0    # m/s² when W held
+    BRAKE_RATE   = 6.0    # m/s² deceleration when S held
+    TURN_RATE    = 60.0   # °/s when A or D held
+    MAX_SPEED    = 20.0   # m/s cap for manual drive
+    MIN_SPEED    = 0.0    # can stop completely
+
+    def __init__(self, lat: float, lon: float, heading: float, speed: float) -> None:
+        self.lat     = lat
+        self.lon     = lon
+        self.heading = heading
+        self.speed   = speed
+
+    def tick(self, dt: float, keys: dict) -> dict:
+        """
+        Advance physics by dt seconds given the currently held keys.
+
+        keys: { "w": bool, "a": bool, "s": bool, "d": bool }
+        Returns updated state dict.
+        """
+        w = keys.get("w", False)
+        a = keys.get("a", False)
+        s = keys.get("s", False)
+        d = keys.get("d", False)
+
+        # ── Turning (only when moving) ────────────────────────────────────
+        if self.speed > 0.5:
+            if a:
+                self.heading = (self.heading - self.TURN_RATE * dt) % 360
+            if d:
+                self.heading = (self.heading + self.TURN_RATE * dt) % 360
+
+        # ── Speed / acceleration ──────────────────────────────────────────
+        if w and not s:
+            self.speed = min(self.MAX_SPEED, self.speed + self.ACCEL_RATE * dt)
+            accel = self.ACCEL_RATE
+            brake = 0
+        elif s and not w:
+            self.speed = max(self.MIN_SPEED, self.speed - self.BRAKE_RATE * dt)
+            accel = -self.BRAKE_RATE
+            brake = 1
+        else:
+            # Coast — gentle friction
+            self.speed = max(self.MIN_SPEED, self.speed - 1.5 * dt)
+            accel = 0.0
+            brake = 0
+
+        # ── Position step ─────────────────────────────────────────────────
+        heading_rad = math.radians(self.heading)
+        distance_m  = self.speed * dt
+
+        d_lat = (distance_m * math.cos(heading_rad)) / METRES_PER_DEG_LAT
+        d_lon = (distance_m * math.sin(heading_rad)) / METRES_PER_DEG_LON
+
+        self.lat += d_lat
+        self.lon += d_lon
+
+        # Clamp to boundary
+        self.lat = max(BOUNDARY["lat_min"], min(BOUNDARY["lat_max"], self.lat))
+        self.lon = max(BOUNDARY["lon_min"], min(BOUNDARY["lon_max"], self.lon))
+
+        return {
+            "lat":     self.lat,
+            "lon":     self.lon,
+            "speed":   self.speed,
+            "heading": self.heading,
+            "accel":   accel,
+            "brake":   brake,
+        }
 
 
 # ── Configuration ────────────────────────────────────────────────────────────
@@ -80,6 +163,16 @@ class OBUNode:
         self._state:       dict  = {}
         self._trail:       list  = []
         self._neighbours:  dict  = {}   # vehicle_id → latest decoded BSM
+
+        # ── Drive override (manual control) ──────────────────────────────
+        # When mode == "drive", the path engine is frozen and DrivePhysics
+        # is used instead.  keys dict is updated by set_drive_override().
+        self._drive_lock     = threading.Lock()
+        self._drive_override = {
+            "mode": "auto",        # "auto" | "drive"
+            "keys": {"w": False, "a": False, "s": False, "d": False},
+        }
+        self._drive_physics: Optional[DrivePhysics] = None
 
         # Threading
         self._stop_event = threading.Event()
@@ -147,6 +240,34 @@ class OBUNode:
         """Current BSM broadcast rate in Hz."""
         return TICK_RATE_BRAKE if self._state.get("brake", 0) else TICK_RATE_NORMAL
 
+    def set_drive_override(self, mode: str, keys: dict) -> None:
+        """
+        Switch between auto-pilot and manual drive mode.
+
+        Args:
+            mode: "auto" or "drive"
+            keys: dict with boolean flags for w, a, s, d (used when mode=="drive")
+        """
+        with self._drive_lock:
+            prev_mode = self._drive_override["mode"]
+            self._drive_override["mode"] = mode
+            self._drive_override["keys"] = keys
+
+            # When first entering drive mode, seed DrivePhysics from current state
+            if mode == "drive" and prev_mode != "drive":
+                s = self._state
+                self._drive_physics = DrivePhysics(
+                    lat     = s.get("lat",  12.9725),
+                    lon     = s.get("lon",  77.5950),
+                    heading = s.get("hdg",  0.0),
+                    speed   = s.get("spd",  0.0),
+                )
+                logger.info(f"[OBU] {self.name} → DRIVE mode")
+
+            elif mode == "auto" and prev_mode == "drive":
+                self._drive_physics = None
+                logger.info(f"[OBU] {self.name} → AUTO mode")
+
     # ── TX loop ──────────────────────────────────────────────────────────
 
     def _tx_loop(self) -> None:
@@ -163,8 +284,14 @@ class OBUNode:
             dt  = now - last_tick
             last_tick = now
 
-            # Advance the path engine
-            state = self.path_engine.tick(dt)
+            # Branch on drive mode vs auto mode
+            with self._drive_lock:
+                override = dict(self._drive_override)
+
+            if override["mode"] == "drive" and self._drive_physics is not None:
+                state = self._drive_physics.tick(dt, override["keys"])
+            else:
+                state = self.path_engine.tick(dt)
 
             # Compute timestamp relative to node start
             timestamp_ms = int((now - self._start_time) * 1000)

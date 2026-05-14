@@ -41,19 +41,22 @@ const ALERT_COLORS = {
 };
 
 // ── Create custom divIcon for a vehicle ──────────────────────────────────────
-function makeVehicleIcon(type, alert) {
-  const baseColor = ALERT_COLORS[alert] || TYPE_COLORS[type] || '#3b82f6';
-  const letter    = TYPE_LETTERS[type] || '?';
+function makeVehicleIcon(type, alert, isDriving = false) {
+  const baseColor  = ALERT_COLORS[alert] || TYPE_COLORS[type] || '#3b82f6';
+  const letter     = TYPE_LETTERS[type] || '?';
   const alertClass = alert === 'RED' ? 'alert-RED' : '';
+  const driveBadge = isDriving
+    ? `<span class="drive-badge">🕹</span>`
+    : '';
 
   return L.divIcon({
     className: '',
-    html: `<div class="vehicle-marker-icon ${alertClass}" 
+    html: `<div class="vehicle-marker-icon ${alertClass}"
                 style="background:${baseColor};">
-             ${letter}
+             ${letter}${driveBadge}
            </div>`,
-    iconSize:   [28, 28],
-    iconAnchor: [14, 14],
+    iconSize:   isDriving ? [36, 36] : [28, 28],
+    iconAnchor: isDriving ? [18, 18] : [14, 14],
   });
 }
 
@@ -91,6 +94,7 @@ export default function MapCanvas() {
   const trails          = useVehicleStore((s) => s.trails);
   const selectedId      = useVehicleStore((s) => s.selectedId);
   const selectVehicle   = useVehicleStore((s) => s.selectVehicle);
+  const driveMode       = useVehicleStore((s) => s.driveMode);
 
   // Compute worst alert per vehicle for icon coloring
   const vehicleAlerts = useMemo(() => {
@@ -177,12 +181,13 @@ export default function MapCanvas() {
       {Object.values(vehicles).map((v) => {
         if (!v.lat || !v.lon) return null;
         const alert = vehicleAlerts[v.id] || 'GREEN';
+        const isDriving = driveMode && v.id === selectedId;
 
         return (
           <Marker
             key={v.id}
             position={[v.lat, v.lon]}
-            icon={makeVehicleIcon(v.type, alert)}
+            icon={makeVehicleIcon(v.type, alert, isDriving)}
             eventHandlers={{
               click: () => selectVehicle(v.id),
             }}

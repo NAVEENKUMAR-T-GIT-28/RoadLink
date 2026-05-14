@@ -83,9 +83,20 @@ async def ws_handler(websocket: websockets.WebSocketServerProtocol) -> None:
     logger.info(f"[WS] Dashboard connected ({len(ws_clients)} clients)")
 
     try:
-        # Keep connection alive — listen for any messages (we ignore them)
-        async for _ in websocket:
-            pass
+        async for raw_msg in websocket:
+            try:
+                msg = json.loads(raw_msg)
+            except json.JSONDecodeError:
+                continue
+
+            if msg.get("type") == "drive_input":
+                # { type:"drive_input", id:"<registry_id>", mode:"drive"|"auto",
+                #   keys: {w:bool, a:bool, s:bool, d:bool} }
+                vid  = msg.get("id", "")
+                mode = msg.get("mode", "auto")
+                keys = msg.get("keys", {"w": False, "a": False, "s": False, "d": False})
+                if vid:
+                    registry.set_drive_override(vid, mode, keys)
     except websockets.exceptions.ConnectionClosed:
         pass
     finally:

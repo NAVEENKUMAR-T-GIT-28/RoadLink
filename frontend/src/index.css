@@ -603,6 +603,7 @@ body {
 }
 
 .vehicle-marker-icon {
+  position: relative;   /* needed for drive-badge absolute positioning */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -637,4 +638,84 @@ body {
 /* ── Utility ──────────────────────────────────────────────────────────────── */
 .no-select {
   user-select: none;
+}
+
+/* ── Drive toggle button ────────────────────────────────────────────── */
+.drive-toggle-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: 0.5px;
+  font-family: var(--font-sans);
+}
+.drive-toggle-btn.active {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: #fff;
+  box-shadow: 0 0 8px rgba(124, 58, 237, 0.5);
+}
+
+/* ── Drive HUD panel ────────────────────────────────────────────────── */
+.drive-hud {
+  background: rgba(124, 58, 237, 0.08);
+  border: 1px solid rgba(124, 58, 237, 0.3);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 8px 0;
+}
+.drive-hud-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #a78bfa;
+  margin-bottom: 8px;
+}
+.drive-key-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 40px);
+  gap: 4px;
+  justify-content: center;
+}
+.drive-key {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  transition: all 0.07s;
+  min-width: 36px;
+}
+.drive-key.pressed {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  transform: scale(0.92);
+}
+.drive-key .key-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.drive-key .key-action {
+  font-size: 8px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+/* ── Drive badge on map marker ──────────────────────────────────────── */
+.drive-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  font-size: 10px;
+  background: #7c3aed;
+  border-radius: 50%;
+  padding: 2px;
+  line-height: 1;
 }

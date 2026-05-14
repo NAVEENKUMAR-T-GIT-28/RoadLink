@@ -15,6 +15,7 @@ export default function useWS() {
 
   const setConnected = useVehicleStore((s) => s.setConnected);
   const processFrame = useVehicleStore((s) => s.processFrame);
+  const _setWsSend   = useVehicleStore((s) => s._setWsSend);
 
   useEffect(() => {
     let mounted = true;
@@ -29,6 +30,13 @@ export default function useWS() {
         // Send dashboard handshake
         ws.send(JSON.stringify({ type: 'dashboard' }));
         setConnected(true);
+
+        // Register send function so the store can push drive_input messages
+        _setWsSend((msg) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(msg));
+          }
+        });
       };
 
       ws.onmessage = (event) => {
@@ -42,6 +50,7 @@ export default function useWS() {
 
       ws.onclose = () => {
         setConnected(false);
+        _setWsSend(null);   // Clear on disconnect
         // Auto-reconnect
         if (mounted) {
           reconnectRef.current = setTimeout(connect, RECONNECT_MS);
@@ -60,5 +69,5 @@ export default function useWS() {
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
       if (wsRef.current) wsRef.current.close();
     };
-  }, [setConnected, processFrame]);
+  }, [setConnected, processFrame, _setWsSend]);
 }
