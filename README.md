@@ -45,6 +45,7 @@
 19. [Troubleshooting](#19-troubleshooting)
 20. [Known limitations (MVP)](#20-known-limitations-mvp)
 21. [Roadmap](#21-roadmap)
+22. [Drive Mode (Manual Control)](#22-drive-mode-manual-control)
 
 ---
 
@@ -68,6 +69,7 @@ In the dashboard you can:
 - Click any vehicle marker to open its prediction dashboard (telemetry, nearby vehicles sorted by TTC, a live TTC/distance chart, event log)
 - Spawn a new vehicle (pick type, give it a name) and watch it appear on the map within one frame
 - Delete any vehicle and watch it disappear instantly
+- **Manually drive any vehicle** using WASD keys while inspecting it
 
 ---
 
@@ -80,8 +82,8 @@ Think of each vehicle as a self-contained embedded device. In real V2V systems t
 ```
 OBUNode (one Python thread per vehicle)
 │
-├── path_engine.tick(dt)
-│     generates new lat, lon, speed, heading, accel, brake
+├── path_engine.tick(dt) OR drive_physics.tick(keys)
+│     generates new state (auto-path or manual WASD)
 │
 ├── bsm_codec.encode(...)
 │     packs 28-byte frame with CRC-16
@@ -147,8 +149,8 @@ A standard React 18 SPA. State is held in a Zustand store. A single `useWS` hook
 ┌──────────────────────────────▼───────────────────────────────┐
 │  FRONTEND LAYER (React 18, Vite, port 5173)                  │
 │                                                              │
-│  useWS hook ──► Zustand vehicleStore                         │
-│                      │                                       │
+│  useWS hook ──────► Zustand vehicleStore ◄──── useKeyboard   │
+│  (WebSocket rx)           │                   (WASD keys)    │
 │         ┌────────────┼──────────────┬──────────────┐         │
 │         ▼            ▼              ▼              ▼         │
 │      MapCanvas  VehicleList   DetailPanel     AlertBar       │
@@ -585,6 +587,15 @@ Scrollable feed of alert state changes and brake events, most recent first. Each
 
 The trash icon button in the detail panel header sends `DELETE /api/vehicles/{id}` to the gateway. The OBU thread is killed, the vehicle disappears from the registry, and the next WebSocket broadcast omits it. The marker vanishes from the map immediately.
 
+### Drive Mode (Manual Control)
+
+Selecting a vehicle unlocks the **Drive Mode** toggle in the header:
+- Click **🤖 AUTO** to switch to **🕹 DRIVE** mode.
+- The dashboard captures your keyboard; use **WASD** to steer and accelerate.
+- A **Drive HUD** appears below the telemetry section showing real-time key presses.
+- The map camera automatically **locks and follows** the driven vehicle.
+- De-select the vehicle or click the toggle again to return it to autonomous behavior.
+
 ---
 
 ## 12. REST API reference
@@ -770,6 +781,28 @@ The gateway will then begin forwarding frames. Any client that does not send the
 | `collision_matrix.{pair}.alert` | string | `"GREEN"`, `"AMBER"`, or `"RED"` |
 
 **Pair key format:** `"{lower_id}-{higher_id}"` — always the lexicographically smaller ID first, so each pair has exactly one key regardless of which vehicle sent the triggering frame.
+
+---
+
+### Incoming Messages (Dashboard → Gateway)
+
+To control vehicles or initiate actions, the dashboard sends JSON frames to the gateway:
+
+#### `drive_input` — control a vehicle
+
+```json
+{
+  "type": "drive_input",
+  "id":   "a3f9c1",
+  "mode": "drive",
+  "keys": { "w": true, "a": false, "s": false, "d": true }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mode`| string | `"drive"` to enable manual override, `"auto"` to return to path engine |
+| `keys`| object | Boolean states for `w`, `a`, `s`, `d` keys |
 
 ---
 
@@ -1094,6 +1127,24 @@ Features planned beyond MVP, in rough priority order:
 - **Weather / visibility model** — reduce CPA lookahead and increase alert thresholds when simulated visibility is low
 - **Mobile dashboard** — responsive React layout so the dashboard is usable on a phone screen
 - **Persistence** — SQLite log of all BSM frames and alert events, queryable via a `/api/history` endpoint
+
+---
+
+## 22. Drive Mode (Manual Control)
+
+ROADLINK's **Drive Mode** bridges the gap between a passive simulation and an interactive playground. It allows you to test specific collision scenarios by manually steering a vehicle into (or out of) harm's way.
+
+#### High-fidelity Physics
+When a vehicle enters Drive Mode, it stops following its pre-defined `PathProfile` and attaches to a `DrivePhysics` engine. This engine simulates:
+- **Inertia**: Smooth acceleration and deceleration.
+- **Steering Geometry**: Heading changes based on velocity (tighter turns at lower speeds).
+- **Braking**: Immediate deceleration and reverse capability.
+
+#### Integrated Safety Feedback
+Because the gateway runs the collision engine on every packet, you receive real-time AMBER/RED alerts on your own dashboard as you drive towards other autonomous vehicles.
+
+#### Navigation Camera
+The "Follow Camera" logic in the dashboard provides a stable viewport. It uses movement thresholds and time-based throttling to ensure the camera moves smoothly without jittering on every high-frequency BSM update.
 
 ---
 
