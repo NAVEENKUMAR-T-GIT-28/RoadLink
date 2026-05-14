@@ -1,0 +1,5 @@
+websockets>=11.0
+aiohttp>=3.9
+aiohttp-cors>=0.7.0
+matplotlib>=3.7
+numpy>=1.24

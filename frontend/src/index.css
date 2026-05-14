@@ -1,0 +1,640 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   RoadLink — Dashboard Styles
+   Premium dark-mode design with glassmorphism and micro-animations.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Reset & Globals ──────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* Core palette */
+  --bg-primary:    #0a0e1a;
+  --bg-secondary:  #111827;
+  --bg-card:       rgba(17, 24, 39, 0.85);
+  --bg-glass:      rgba(255, 255, 255, 0.04);
+  --border:        rgba(255, 255, 255, 0.08);
+  --border-hover:  rgba(255, 255, 255, 0.15);
+
+  /* Text */
+  --text-primary:   #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted:     #64748b;
+
+  /* Accent colors */
+  --accent-blue:    #3b82f6;
+  --accent-teal:    #14b8a6;
+  --accent-purple:  #8b5cf6;
+  --accent-amber:   #f59e0b;
+  --accent-red:     #ef4444;
+  --accent-green:   #22c55e;
+
+  /* Alert colors */
+  --alert-green:    #22c55e;
+  --alert-amber:    #f59e0b;
+  --alert-red:      #ef4444;
+  --alert-green-bg: rgba(34, 197, 94, 0.12);
+  --alert-amber-bg: rgba(245, 158, 11, 0.12);
+  --alert-red-bg:   rgba(239, 68, 68, 0.12);
+
+  /* Type colors */
+  --color-car:       #3b82f6;
+  --color-truck:     #14b8a6;
+  --color-bike:      #f97316;
+  --color-emergency: #ef4444;
+
+  /* Fonts */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  /* Shadows */
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 20px rgba(59, 130, 246, 0.15);
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Layout ───────────────────────────────────────────────────────────────── */
+.app-layout {
+  display: grid;
+  grid-template-rows: 52px 1fr;
+  grid-template-columns: 300px 1fr 360px;
+  height: 100vh;
+  width: 100vw;
+}
+
+.app-header {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  z-index: 1000;
+}
+
+.sidebar-left {
+  grid-column: 1;
+  grid-row: 2;
+  overflow-y: auto;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  padding: 12px;
+}
+
+.map-area {
+  grid-column: 2;
+  grid-row: 2;
+  position: relative;
+  z-index: 1;
+}
+
+.sidebar-right {
+  grid-column: 3;
+  grid-row: 2;
+  overflow-y: auto;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border);
+  padding: 16px;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-hover);
+  border-radius: 3px;
+}
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-brand h1 {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-teal));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.header-brand .version-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--accent-blue);
+  letter-spacing: 0.5px;
+}
+
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 99px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.status-pill.live {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--accent-green);
+}
+
+.status-pill.disconnected {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--accent-red);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.status-pill.live .status-dot {
+  background: var(--accent-green);
+}
+
+.status-pill.disconnected .status-dot {
+  background: var(--accent-red);
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+.vehicle-count-badge {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.vehicle-count-badge span {
+  color: var(--accent-blue);
+  font-weight: 700;
+}
+
+/* ── Alert Bar (worst-case) ───────────────────────────────────────────────── */
+.alert-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 14px;
+  border-radius: 99px;
+  letter-spacing: 0.5px;
+  transition: all 0.3s ease;
+}
+
+.alert-pill.GREEN {
+  background: var(--alert-green-bg);
+  color: var(--alert-green);
+}
+
+.alert-pill.AMBER {
+  background: var(--alert-amber-bg);
+  color: var(--alert-amber);
+  animation: pulse-amber 1.5s ease-in-out infinite;
+}
+
+.alert-pill.RED {
+  background: var(--alert-red-bg);
+  color: var(--alert-red);
+  animation: pulse-red 0.8s ease-in-out infinite;
+}
+
+@keyframes pulse-amber {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.3); }
+  50% { box-shadow: 0 0 12px 4px rgba(245, 158, 11, 0.15); }
+}
+
+@keyframes pulse-red {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 16px 6px rgba(239, 68, 68, 0.2); }
+}
+
+/* ── Vehicle List (Left Sidebar) ──────────────────────────────────────────── */
+.sidebar-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.vehicle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+}
+
+.vehicle-row:hover {
+  background: var(--bg-glass);
+  border-color: var(--border);
+}
+
+.vehicle-row.selected {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.vehicle-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.vehicle-dot.car       { background: var(--color-car); }
+.vehicle-dot.truck     { background: var(--color-truck); }
+.vehicle-dot.bike      { background: var(--color-bike); }
+.vehicle-dot.emergency { background: var(--color-emergency); }
+
+.vehicle-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.vehicle-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vehicle-type-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--bg-glass);
+  color: var(--text-muted);
+}
+
+.vehicle-alert {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.vehicle-alert.GREEN { background: var(--alert-green-bg); color: var(--alert-green); }
+.vehicle-alert.AMBER { background: var(--alert-amber-bg); color: var(--alert-amber); }
+.vehicle-alert.RED   { background: var(--alert-red-bg);   color: var(--alert-red); }
+
+/* ── Spawn Form ───────────────────────────────────────────────────────────── */
+.spawn-btn {
+  width: 100%;
+  padding: 10px;
+  margin-top: 8px;
+  border: 1px dashed var(--border-hover);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-sans);
+}
+
+.spawn-btn:hover {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.spawn-form {
+  padding: 14px;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-glass);
+}
+
+.spawn-form label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.spawn-form select,
+.spawn-form input {
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.spawn-form select:focus,
+.spawn-form input:focus {
+  border-color: var(--accent-blue);
+}
+
+.spawn-submit {
+  width: 100%;
+  padding: 9px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-sans);
+}
+
+.spawn-submit:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.spawn-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ── Detail Panel (Right Sidebar) ─────────────────────────────────────────── */
+.detail-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  text-align: center;
+  gap: 8px;
+}
+
+.detail-empty-icon {
+  font-size: 36px;
+  opacity: 0.3;
+}
+
+.detail-empty p {
+  font-size: 13px;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.detail-header-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.detail-vehicle-name {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.delete-btn {
+  background: none;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--accent-red);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s ease;
+  font-family: var(--font-sans);
+}
+
+.delete-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: var(--accent-red);
+}
+
+.detail-section {
+  margin-bottom: 20px;
+}
+
+.detail-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+/* Telemetry grid */
+.telemetry-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.telemetry-item {
+  padding: 10px;
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.telemetry-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.telemetry-value {
+  font-size: 15px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.telemetry-value.brake-active {
+  color: var(--accent-red);
+}
+
+.telemetry-value.brake-off {
+  color: var(--accent-green);
+}
+
+/* Nearby vehicles */
+.nearby-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: all 0.2s;
+}
+
+.nearby-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nearby-stats {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.nearby-stat-label {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+/* Alert log */
+.alert-log {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.alert-log-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin-bottom: 3px;
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  background: var(--bg-glass);
+}
+
+.alert-log-entry .time {
+  color: var(--text-muted);
+  font-size: 10px;
+  min-width: 50px;
+}
+
+/* ── Map ──────────────────────────────────────────────────────────────────── */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  background: var(--bg-primary);
+}
+
+.leaflet-tile-pane {
+  filter: brightness(0.7) saturate(0.8) contrast(1.1);
+}
+
+.vehicle-marker-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  transition: all 0.3s ease;
+}
+
+.vehicle-marker-icon.alert-RED {
+  animation: marker-pulse-red 0.8s ease-in-out infinite;
+}
+
+@keyframes marker-pulse-red {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+  50% { box-shadow: 0 0 16px 8px rgba(239, 68, 68, 0.2); }
+}
+
+/* ── Chart ────────────────────────────────────────────────────────────────── */
+.chart-container {
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+}
+
+/* ── Utility ──────────────────────────────────────────────────────────────── */
+.no-select {
+  user-select: none;
+}

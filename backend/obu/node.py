@@ -1,0 +1,255 @@
+"""
+OBU Node — On-Board Unit simulation thread.
+
+Each OBUNode behaves like embedded firmware running on a vehicle:
+  - path_engine.tick(dt) generates realistic GPS movement
+  - tx_loop broadcasts BSM frames over UDP at 2–10 Hz
+  - rx_loop receives BSM frames from all other OBUs and updates
+    a local neighbour table
+
+One Python thread per vehicle. Started/stopped by the gateway.
+"""
+
+import logging
+import os
+import random
+import socket
+import struct
+import sys
+import threading
+import time
+from typing import Optional
+
+# Resolve imports relative to the backend package
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from bsm_codec import encode, decode, FRAME_SIZE
+from obu.path_engine import PathEngine, PROFILES
+
+logger = logging.getLogger("obu")
+
+
+# ── Configuration ────────────────────────────────────────────────────────────
+
+BSM_BROADCAST_ADDR = ("127.0.0.1", 5005)
+TICK_RATE_NORMAL   = 2          # Hz — base broadcast frequency
+TICK_RATE_BRAKE    = 10         # Hz — elevated during brake events
+RX_BUFFER_SIZE     = 64         # bytes — BSM frame is 28, headroom for safety
+TRAIL_HISTORY      = 80         # positions to keep for map trail
+
+
+class OBUNode:
+    """
+    Simulates a single vehicle On-Board Unit.
+
+    Lifecycle:
+        node = OBUNode(name="Car A", vehicle_type="car", vehicle_id=0xA001)
+        node.start()    # spawns tx + rx threads
+        ...
+        node.stop()     # signals graceful shutdown, blocks until threads exit
+    """
+
+    def __init__(
+        self,
+        name:         str,
+        vehicle_type: str,
+        vehicle_id:   int,
+        registry_id:  str,
+    ) -> None:
+        """
+        Args:
+            name:         Human-readable vehicle name (e.g. "Car A").
+            vehicle_type: One of "car", "truck", "bike", "emergency".
+            vehicle_id:   Numeric ID embedded in BSM frames (uint32).
+            registry_id:  Short hex ID used in the gateway registry.
+        """
+        if vehicle_type not in PROFILES:
+            raise ValueError(f"Unknown vehicle type: {vehicle_type}")
+
+        self.name         = name
+        self.vehicle_type = vehicle_type
+        self.vehicle_id   = vehicle_id
+        self.registry_id  = registry_id
+
+        # Path engine for this vehicle's profile
+        profile           = PROFILES[vehicle_type]
+        self.path_engine  = PathEngine(profile)
+        self.vehicle_class = profile.vehicle_class
+
+        # State tracking
+        self._start_time:  float = 0.0
+        self._state:       dict  = {}
+        self._trail:       list  = []
+        self._neighbours:  dict  = {}   # vehicle_id → latest decoded BSM
+
+        # Threading
+        self._stop_event = threading.Event()
+        self._tx_thread: Optional[threading.Thread] = None
+        self._rx_thread: Optional[threading.Thread] = None
+
+        # UDP socket — shared between tx and rx
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # Allow receiving broadcast on the same port
+        self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self._sock.settimeout(0.5)  # non-blocking rx with 500ms timeout
+
+    # ── Public API ───────────────────────────────────────────────────────
+
+    def start(self) -> None:
+        """Start the OBU — spawns tx and rx threads."""
+        self._start_time = time.monotonic()
+        self._stop_event.clear()
+
+        self._tx_thread = threading.Thread(
+            target=self._tx_loop, name=f"OBU-TX-{self.name}", daemon=True
+        )
+        self._rx_thread = threading.Thread(
+            target=self._rx_loop, name=f"OBU-RX-{self.name}", daemon=True
+        )
+        self._tx_thread.start()
+        self._rx_thread.start()
+        logger.info(f"[OBU] {self.name} started (id={self.registry_id}, vid={self.vehicle_id})")
+
+    def stop(self) -> None:
+        """Signal the OBU to stop and wait for threads to exit."""
+        self._stop_event.set()
+        if self._tx_thread and self._tx_thread.is_alive():
+            self._tx_thread.join(timeout=2.0)
+        if self._rx_thread and self._rx_thread.is_alive():
+            self._rx_thread.join(timeout=2.0)
+        try:
+            self._sock.close()
+        except OSError:
+            pass
+        logger.info(f"[OBU] {self.name} stopped")
+
+    @property
+    def is_running(self) -> bool:
+        return not self._stop_event.is_set()
+
+    @property
+    def state(self) -> dict:
+        """Current vehicle state for the registry."""
+        return dict(self._state)
+
+    @property
+    def trail(self) -> list:
+        """Position history for map trail rendering."""
+        return list(self._trail)
+
+    @property
+    def neighbours(self) -> dict:
+        """Local neighbour table built from received BSM frames."""
+        return dict(self._neighbours)
+
+    @property
+    def tx_rate(self) -> int:
+        """Current BSM broadcast rate in Hz."""
+        return TICK_RATE_BRAKE if self._state.get("brake", 0) else TICK_RATE_NORMAL
+
+    # ── TX loop ──────────────────────────────────────────────────────────
+
+    def _tx_loop(self) -> None:
+        """
+        Transmit loop — ticks the path engine and broadcasts a BSM frame.
+
+        Runs at TICK_RATE_NORMAL Hz normally, escalates to TICK_RATE_BRAKE Hz
+        when the vehicle is braking (per README spec).
+        """
+        last_tick = time.monotonic()
+
+        while not self._stop_event.is_set():
+            now = time.monotonic()
+            dt  = now - last_tick
+            last_tick = now
+
+            # Advance the path engine
+            state = self.path_engine.tick(dt)
+
+            # Compute timestamp relative to node start
+            timestamp_ms = int((now - self._start_time) * 1000)
+
+            # Update internal state
+            self._state = {
+                "id":           self.registry_id,
+                "name":         self.name,
+                "type":         self.vehicle_type,
+                "lat":          state["lat"],
+                "lon":          state["lon"],
+                "spd":          round(state["speed"], 2),
+                "hdg":          round(state["heading"], 1),
+                "accel":        round(state["accel"], 2),
+                "brake":        state["brake"],
+                "tx_rate":      self.tx_rate,
+                "timestamp_ms": timestamp_ms,
+            }
+
+            # Append to trail history
+            self._trail.append({"lat": state["lat"], "lon": state["lon"]})
+            if len(self._trail) > TRAIL_HISTORY:
+                self._trail = self._trail[-TRAIL_HISTORY:]
+
+            # Encode BSM frame
+            frame = encode(
+                vehicle_id    = self.vehicle_id,
+                lat           = state["lat"],
+                lon           = state["lon"],
+                speed_mps     = state["speed"],
+                heading_deg   = state["heading"],
+                accel_ms2     = state["accel"],
+                brake         = state["brake"],
+                vehicle_class = self.vehicle_class,
+                timestamp_ms  = timestamp_ms,
+            )
+
+            # Broadcast over UDP
+            try:
+                self._sock.sendto(frame, BSM_BROADCAST_ADDR)
+            except OSError as e:
+                logger.warning(f"[OBU] {self.name} TX error: {e}")
+
+            # Sleep for the tick interval
+            rate = TICK_RATE_BRAKE if state["brake"] else TICK_RATE_NORMAL
+            interval = 1.0 / rate
+            # Subtract elapsed processing time
+            elapsed = time.monotonic() - now
+            sleep_time = max(0.01, interval - elapsed)
+            self._stop_event.wait(sleep_time)
+
+    # ── RX loop ──────────────────────────────────────────────────────────
+
+    def _rx_loop(self) -> None:
+        """
+        Receive loop — listens for BSM frames from other OBUs
+        and updates the local neighbour table.
+        """
+        while not self._stop_event.is_set():
+            try:
+                data, addr = self._sock.recvfrom(RX_BUFFER_SIZE)
+            except socket.timeout:
+                continue
+            except OSError:
+                if self._stop_event.is_set():
+                    break
+                continue
+
+            # Decode the frame
+            decoded = decode(data)
+            if decoded is None:
+                continue
+
+            # Skip our own frames
+            if decoded["vehicle_id"] == self.vehicle_id:
+                continue
+
+            # Update neighbour table
+            self._neighbours[decoded["vehicle_id"]] = {
+                "lat":          decoded["lat"],
+                "lon":          decoded["lon"],
+                "spd":          decoded["spd"],
+                "hdg":          decoded["hdg"],
+                "accel":        decoded["accel"],
+                "brake":        decoded["brake"],
+                "timestamp_ms": decoded["timestamp_ms"],
+                "last_seen":    time.monotonic(),
+            }
