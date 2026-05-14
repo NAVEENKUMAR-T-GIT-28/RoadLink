@@ -87,6 +87,69 @@ function MapUpdater({ vehicles }) {
   return null;
 }
 
+// ── MapFollower — continuously follows the selected vehicle ──────────────────
+function MapFollower() {
+  const map = useMap();
+  const vehicles = useVehicleStore((s) => s.vehicles);
+  const selectedId = useVehicleStore((s) => s.selectedId);
+  const driveMode = useVehicleStore((s) => s.driveMode);
+  
+  const lastPos = React.useRef({ lat: null, lon: null });
+  const lastMove = React.useRef(0);
+  const isDragging = React.useRef(false);
+
+  // Track manual dragging
+  React.useEffect(() => {
+    if (!map) return;
+    const onDragStart = () => { isDragging.current = true; };
+    const onDragEnd = () => { isDragging.current = false; };
+    
+    map.on('dragstart', onDragStart);
+    map.on('dragend', onDragEnd);
+    
+    return () => {
+      map.off('dragstart', onDragStart);
+      map.off('dragend', onDragEnd);
+    };
+  }, [map]);
+
+  React.useEffect(() => {
+    if (!selectedId || !map || !driveMode || isDragging.current) return;
+
+    const vehicle = vehicles[selectedId];
+    if (vehicle?.lat && vehicle?.lon) {
+      const DIST_THRESHOLD = 0.00008;
+
+      if (
+        lastPos.current.lat !== null &&
+        Math.abs(vehicle.lat - lastPos.current.lat) < DIST_THRESHOLD &&
+        Math.abs(vehicle.lon - lastPos.current.lon) < DIST_THRESHOLD
+      ) {
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastMove.current < 500) {
+        return;
+      }
+
+      map.panTo(
+        [vehicle.lat, vehicle.lon],
+        {
+          animate: true,
+          duration: 0.5
+        }
+      );
+      
+      lastPos.current.lat = vehicle.lat;
+      lastPos.current.lon = vehicle.lon;
+      lastMove.current = now;
+    }
+  }, [vehicles, selectedId, driveMode, map]);
+
+  return null;
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 export default function MapCanvas() {
   const vehicles        = useVehicleStore((s) => s.vehicles);
@@ -144,6 +207,7 @@ export default function MapCanvas() {
       />
 
       <MapUpdater vehicles={vehicles} />
+      <MapFollower />
 
       {/* Vehicle trails */}
       {Object.entries(trails).map(([id, trail]) => {
